@@ -4,6 +4,7 @@ var Schema = mongoose.Schema;
 var CategoriaSchema = Schema({
     name: { type: String, required: true },
     status: { type: String, required: false, default: 'PENDING' },
+    slug: { type: String, required: true },
     createdAt: { type: Date, default: Date.now, required: true },
     updatedAt: { type: Date }
 });

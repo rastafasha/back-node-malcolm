@@ -1,5 +1,6 @@
 const { response } = require('express');
 const Portafolio = require('../models/portafolio');
+const Categoria = require('../models/categoria');
 const bcrypt = require('bcryptjs');
 const { generarJWT } = require('../helpers/jwt');
 
@@ -23,8 +24,6 @@ const getPortafolios = async (req, res) => {
            return res.status(500).json({ message: 'Error al obtener proyectos' });
        }
 };
-
-
 
 
 const getPortafolio = async (req, res) => {
@@ -104,8 +103,6 @@ const crearPortafolio = async (req, res) => {
             msg: 'Hable con el admin'
         });
     }
-
-
 };
 
 const actualizarPortafolio = async (req, res) => {
@@ -233,37 +230,41 @@ const listarPorCategoria = async (req, res) => {
         res.status(500).send({ error: err });
     }
 }
+
 const listarPorCategoriaId = async (req, res) => {
-    var id = req.params['id'];
-    // 1. CAPTURAR EL NUEVO FILTRO DE ESTADO DESDE LA QUERY URL
+    const { id } = req.params; 
     const estadoFilter = req.query.estado_seguimiento || null;
 
-    try {
-        // First, find the category by name
-        const Categoria = require('../models/categoria');
-        const categoria = await Categoria.findOne({ id: id });
-        
-        if (!categoria) {
-            return res.status(404).json({ message: 'Categoría no encontrada' });
-        }
-        
-        // 2. CONSTRUIR EL FILTRO DE BÚSQUEDA DINÁMICO
-        let portafoliosFilter = { category: categoria._id };
+    // 1. Revisa qué llega en la consola de tu terminal
+    console.log("ID recibido desde la URL:", id);
+    console.log("Tipo de dato del ID:", typeof id);
 
-        // Si el usuario envió un estado, lo agregamos al filtro de la consulta
-        if (estadoFilter) {
-            portafoliosFilter.estado_seguimiento = estadoFilter;
+    try {
+        // Intenta con findById si es el ID largo de Mongo (24 caracteres hexadecimales)
+        const categoria = await Categoria.findById(id); 
+        
+        // Si usas un campo 'id' personalizado y numérico, usa:
+        // const categoria = await Categoria.findOne({ id: Number(id) });
+
+        console.log("Resultado de la búsqueda en BD:", categoria);
+
+        if (!categoria) {
+            return res.status(404).json({ message: 'Categoría no encontrada en la base de datos' });
         }
-        
-        // Then, find portafolios using the category's ObjectId and the filters
-        const portafolios = await Portafolio.find(portafoliosFilter)
-            .populate('category');
-        
-        res.status(200).send({ portafolios: portafolios });
+
+        let portafoliosFilter = { category: categoria._id };
+        if (estadoFilter) { portafoliosFilter.estado_seguimiento = estadoFilter; }
+
+        const portafolios = await Portafolio.find(portafoliosFilter).populate('category');
+        return res.status(200).json({ portafolios });
+
     } catch (err) {
-        res.status(500).send({ error: err });
+        console.error("Error exacto de Mongo:", err);
+        return res.status(500).json({ message: 'Error en el servidor', error: err.message });
     }
-}
+};
+
+
 
 
 module.exports = {

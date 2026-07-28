@@ -55,12 +55,31 @@ const getCategoria = async(req, res) => {
     
 };
 
-const crearCategoria = async(req, res) => {
+
+const crearCategoria = async (req, res) => {
 
     const uid = req.uid;
+
+    // Convertir el título en slug
+    const name = req.body.name || '';
+    const slug = name.toLowerCase()
+        .trim()
+        .replace(/[\s]+/g, '-') // reemplaza espacios por guiones
+        .replace(/[^\w\-]+/g, '') // elimina caracteres no alfanuméricos excepto guiones
+        .replace(/\-\-+/g, '-') // reemplaza guiones múltiples por uno solo
+        // reemplaza acentos y caracteres especiales
+        .replace(/á/g, 'a')
+        .replace(/é/g, 'e')
+        .replace(/í/g, 'i')
+        .replace(/ó/g, 'o')
+        .replace(/ú/g, 'u')
+        .replace(/ñ/g, 'n')
+        .replace(/ü/g, 'u');
+
     const categoria = new Categoria({
         usuario: uid,
-        ...req.body
+        ...req.body,
+        slug: slug,
     });
 
     try {
@@ -79,11 +98,9 @@ const crearCategoria = async(req, res) => {
             msg: 'Hable con el admin'
         });
     }
-
-
 };
 
-const actualizarCategoria = async(req, res) => {
+const actualizarCategoria = async (req, res) => {
 
     const id = req.params.id;
     const uid = req.uid;
@@ -94,7 +111,7 @@ const actualizarCategoria = async(req, res) => {
         if (!categoria) {
             return res.status(500).json({
                 ok: false,
-                msg: 'Categoria no encontrado por el id'
+                msg: 'categoria no encontrado por el id'
             });
         }
 
@@ -102,6 +119,26 @@ const actualizarCategoria = async(req, res) => {
             ...req.body,
             usuario: uid
         }
+
+        // Si viene el título actualizado, actualizar el slug
+        if (req.body.name) {
+            const name = req.body.name;
+            const slug = name.toLowerCase()
+                .trim()
+                .replace(/[\s]+/g, '-') // reemplaza espacios por guiones
+                .replace(/[^\w\-]+/g, '') // elimina caracteres no alfanuméricos excepto guiones
+                .replace(/\-\-+/g, '-') // reemplaza guiones múltiples por uno solo
+                // reemplaza acentos y caracteres especiales
+                .replace(/á/g, 'a')
+                .replace(/é/g, 'e')
+                .replace(/í/g, 'i')
+                .replace(/ó/g, 'o')
+                .replace(/ú/g, 'u')
+                .replace(/ñ/g, 'n')
+                .replace(/ü/g, 'u');
+            cambiosCategoria.slug = slug;
+        }
+
 
         const categoriaActualizado = await Categoria.findByIdAndUpdate(id, cambiosCategoria, { new: true });
 
@@ -111,6 +148,7 @@ const actualizarCategoria = async(req, res) => {
         });
 
     } catch (error) {
+
         res.status(500).json({
             ok: false,
             msg: 'Error hable con el admin'
@@ -168,6 +206,23 @@ function find_by_name(req, res) {
         });
 }
 
+function find_by_slug(req, res) {
+    var slug = req.params['slug'];
+
+    Categoria.findOne({ slug: slug })
+        .exec((err, categoria_data) => {
+            if (err) {
+                res.status(500).send({ message: 'Ocurrió un error en el servidor.' });
+            } else {
+                if (categoria_data) {
+                    res.status(200).send({ categoria: categoria_data });
+                } else {
+                    res.status(500).send({ message: 'No se encontró ningun dato en esta sección.' });
+                }
+            }
+        });
+}
+
 const listarBlogPorCategoria = (req, res) => {
     var id = req.params['id'];
     Categoria.find({ blog: id }, (err, blog_data) => {
@@ -212,5 +267,6 @@ module.exports = {
     find_by_name,
     listarBlogPorCategoria,
     getCategoriasList,
-    catactivos
+    catactivos,
+    find_by_slug
 };

@@ -1,37 +1,30 @@
-/*
-    Ruta: /api/portafolio
-*/
+/* Ruta base: /api/portafolio */
 const { Router } = require('express');
 const router = Router();
 const { check } = require('express-validator');
 const { validarCampos } = require('../middlewares/validar-campos');
+const { validarJWT } = require('../middlewares/validar-jwt');
+
 const {
     getPortafolios,
-getPortafolio,
-borrarPortafolio,
-crearPortafolio,
-actualizarPortafolio,
-listarPorCategoria,
-listarPorCategoriaId,
-    
+    getPortafolio,
+    borrarPortafolio,
+    crearPortafolio,
+    actualizarPortafolio,
+    listarPorCategoria,
+    listarPorCategoriaId,
 } = require('../controllers/portafolioController');
-const {
-    validarJWT
-} = require('../middlewares/validar-jwt');
 
-router.get('/', 
-    // validarJWT, 
-    getPortafolios);
+router.get('/', getPortafolios);
 
-  router.get('/category/:nombre',   listarPorCategoria);  
-  router.get('/category/:id',   listarPorCategoriaId);  
+// SOLUCIÓN: Hacemos las URLs explícitas y diferentes
+router.get('/category/name/:nombre', listarPorCategoria); // Nueva URL: /api/portafolio/category/name/DISEÑO
+router.get('/category/:id', listarPorCategoriaId);    // Nueva URL: /api/portafolio/category/id/60d5ec...
 
 router.post('/store', [
     check('title', 'el nombre es obligatorio').not().isEmpty(),
     validarCampos
 ], crearPortafolio);
-
-
 
 router.put('/update/:id', [
     validarJWT,
@@ -39,15 +32,7 @@ router.put('/update/:id', [
     validarCampos
 ], actualizarPortafolio);
 
-
 router.delete('/delete/:id', [validarJWT], borrarPortafolio);
-
-router.get('/:id', 
-    // [validarJWT], 
-    getPortafolio);
-
-
-
+router.get('/:id', getPortafolio);
 
 module.exports = router;
-
