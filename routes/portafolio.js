@@ -11,7 +11,8 @@ getPortafolio,
 borrarPortafolio,
 crearPortafolio,
 actualizarPortafolio,
-listarPorCategoria
+listarPorCategoria,
+listarPorCategoriaId,
     
 } = require('../controllers/portafolioController');
 const {
@@ -23,6 +24,7 @@ router.get('/',
     getPortafolios);
 
   router.get('/category/:nombre',   listarPorCategoria);  
+  router.get('/category/:id',   listarPorCategoriaId);  
 
 router.post('/store', [
     check('title', 'el nombre es obligatorio').not().isEmpty(),

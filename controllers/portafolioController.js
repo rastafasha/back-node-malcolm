@@ -233,6 +233,37 @@ const listarPorCategoria = async (req, res) => {
         res.status(500).send({ error: err });
     }
 }
+const listarPorCategoriaId = async (req, res) => {
+    var id = req.params['id'];
+    // 1. CAPTURAR EL NUEVO FILTRO DE ESTADO DESDE LA QUERY URL
+    const estadoFilter = req.query.estado_seguimiento || null;
+
+    try {
+        // First, find the category by name
+        const Categoria = require('../models/categoria');
+        const categoria = await Categoria.findOne({ id: id });
+        
+        if (!categoria) {
+            return res.status(404).json({ message: 'Categoría no encontrada' });
+        }
+        
+        // 2. CONSTRUIR EL FILTRO DE BÚSQUEDA DINÁMICO
+        let portafoliosFilter = { category: categoria._id };
+
+        // Si el usuario envió un estado, lo agregamos al filtro de la consulta
+        if (estadoFilter) {
+            portafoliosFilter.estado_seguimiento = estadoFilter;
+        }
+        
+        // Then, find portafolios using the category's ObjectId and the filters
+        const portafolios = await Portafolio.find(portafoliosFilter)
+            .populate('category');
+        
+        res.status(200).send({ portafolios: portafolios });
+    } catch (err) {
+        res.status(500).send({ error: err });
+    }
+}
 
 
 module.exports = {
@@ -241,5 +272,6 @@ listarPorCategoria,
 getPortafolio,
 borrarPortafolio,
 crearPortafolio,
-actualizarPortafolio
+actualizarPortafolio,
+listarPorCategoriaId
 };
