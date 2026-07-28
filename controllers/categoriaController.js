@@ -182,20 +182,26 @@ const listarBlogPorCategoria = (req, res) => {
         }
     });
 }
-function activos(req, res) {
 
-    Categoria.find({ status: ['PUBLISHED'] }).exec((err, portafolio) => {
-        if (err) {
-            res.status(500).send({ message: 'Ocurrió un error en el servidor.' });
-        } else {
-            if (portafolio) {
-                res.status(200).send({ portafolios: portafolio });
-            } else {
-                res.status(500).send({ message: 'No se encontró ningun dato en esta sección.' });
-            }
+const catactivos = async (req, res) => {
+    try {
+        // Buscamos las categorías con estatus 'PUBLISHED' usando promesas
+        const portafolio_data = await Categoria.find({ status: 'PUBLISHED' });
+
+        // Si la lista está vacía o no existe
+        if (!portafolio_data || portafolio_data.length === 0) {
+            return res.status(404).send({ message: 'No se encontró ningún dato en esta sección.' });
         }
-    });
-}
+
+        // Si contiene datos, respondemos con éxito
+        return res.status(200).send({ categorias: portafolio_data });
+
+    } catch (err) {
+        // Captura cualquier error de la base de datos o del servidor
+        return res.status(500).send({ message: 'Ocurrió un error en el servidor.', error: err.message });
+    }
+};
+
 
 module.exports = {
     getCategorias,
@@ -206,5 +212,5 @@ module.exports = {
     find_by_name,
     listarBlogPorCategoria,
     getCategoriasList,
-    activos
+    catactivos
 };
