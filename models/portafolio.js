@@ -11,7 +11,7 @@ var PortafolioSchema = Schema({
     url: { type: String, required: false },
     slug: { type: String, required: true, unique: false },
     img: { type: String },
-    status: { type: String, required: false, default: 'Desactivado' },
+    status: { type: String, required: false, default: 'PENDING' },
     category: { type: Schema.ObjectId, ref: 'categoria' },
     createdAt: { type: Date, default: Date.now, required: true },
     updatedAt: { type: Date }

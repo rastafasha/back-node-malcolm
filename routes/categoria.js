@@ -12,7 +12,8 @@ const {
     getCategoria,
     find_by_name,
     listarBlogPorCategoria,
-    getCategoriasList
+    getCategoriasList,
+    activos
 } = require('../controllers/categoriaController');
 
 const { validarJWT } = require('../middlewares/validar-jwt');
@@ -22,6 +23,7 @@ const { validarCampos } = require('../middlewares/validar-campos');
 router.get('/', getCategorias);
 router.get('/:id', getCategoria);
 router.get('/category_by_nombre/:nombre', find_by_name);
+router.get('/activos/', activos);
 
 
 router.post('/crear', [

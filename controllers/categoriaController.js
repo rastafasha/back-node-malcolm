@@ -182,6 +182,20 @@ const listarBlogPorCategoria = (req, res) => {
         }
     });
 }
+function activos(req, res) {
+
+    Categoria.find({ status: ['PUBLISHED'] }).exec((err, portafolio) => {
+        if (err) {
+            res.status(500).send({ message: 'Ocurrió un error en el servidor.' });
+        } else {
+            if (portafolio) {
+                res.status(200).send({ portafolios: portafolio });
+            } else {
+                res.status(500).send({ message: 'No se encontró ningun dato en esta sección.' });
+            }
+        }
+    });
+}
 
 module.exports = {
     getCategorias,
@@ -191,5 +205,6 @@ module.exports = {
     getCategoria,
     find_by_name,
     listarBlogPorCategoria,
-    getCategoriasList
+    getCategoriasList,
+    activos
 };
