@@ -21,7 +21,8 @@ const allowedOrigins = [
   "http://localhost:5000",
   "http://localhost:4203",
   "https://malcolmcordova.com",
-  "https://admin.malcolmcordova.com",
+  "https://www.malcolmcordova.com",
+  "https://admin-malcolm.vercel.app",
 ];
 
 // Configuración compartida
