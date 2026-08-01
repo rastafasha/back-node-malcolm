@@ -1,7 +1,7 @@
 const { response } = require('express');
 const Categoria = require('../models/categoria');
 const Blog = require('../models/blog');
-
+const { translate } = require('google-translate-api-x');
 const getCategorias = async(req, res) => {
     const categorias = await Categoria.find()
 
@@ -56,107 +56,128 @@ const getCategoria = async(req, res) => {
 };
 
 
+
 const crearCategoria = async (req, res) => {
+  const uid = req.uid;
 
-    const uid = req.uid;
+  // 1. Extraemos el nombre plano en español enviado por tu formulario
+  const nameEs = req.body.name || '';
 
-    // Convertir el título en slug
-    const name = req.body.name || '';
-    const slug = name.toLowerCase()
-        .trim()
-        .replace(/[\s]+/g, '-') // reemplaza espacios por guiones
-        .replace(/[^\w\-]+/g, '') // elimina caracteres no alfanuméricos excepto guiones
-        .replace(/\-\-+/g, '-') // reemplaza guiones múltiples por uno solo
-        // reemplaza acentos y caracteres especiales
-        .replace(/á/g, 'a')
-        .replace(/é/g, 'e')
-        .replace(/í/g, 'i')
-        .replace(/ó/g, 'o')
-        .replace(/ú/g, 'u')
-        .replace(/ñ/g, 'n')
-        .replace(/ü/g, 'u');
+  // Generación correcta y segura del SLUG basada en el nombre en español
+  const slug = nameEs
+    .toLowerCase()
+    .trim()
+    .replace(/ñ/g, 'n')               // Reemplaza la eñe primero
+    .normalize('NFD')                 // Descompone caracteres acentuados
+    .replace(/[\u0300-\u036f]/g, '')   // Elimina los símbolos de acentos sueltos
+    .replace(/[\s]+/g, '-')           // Espacios a guiones
+    .replace(/[^\w\-]+/g, '')         // Limpia caracteres especiales restantes
+    .replace(/\-\-+/g, '-');          // Reduce guiones múltiples a uno solo
 
+  try {
+    // 🚀 TRADUCCIÓN AUTOMÁTICA: Traducimos el nombre de Español a Inglés
+    const traducirName = await translate(nameEs, { from: 'es', to: 'en' });
+
+    // 2. Crear la instancia adaptada al esquema bilingüe de MongoDB
     const categoria = new Categoria({
-        usuario: uid,
-        ...req.body,
-        slug: slug,
+      ...req.body, // Trae el resto de campos si existen
+      usuario: uid,
+      slug: slug,
+      
+      // Convertimos el string plano en el sub-objeto { es, en }
+      name: {
+        es: nameEs,
+        en: traducirName.text
+      }
     });
 
-    try {
+    // 3. Guardar en la Base de Datos
+    const categoriaDB = await categoria.save();
+    
+    res.json({ 
+      ok: true, 
+      categoria: categoriaDB 
+    });
 
-        const categoriaDB = await categoria.save();
-
-        res.json({
-            ok: true,
-            categoria: categoriaDB
-        });
-
-    } catch (error) {
-        // console.log(error);
-        res.status(500).json({
-            ok: false,
-            msg: 'Hable con el admin'
-        });
-    }
+  } catch (error) {
+    console.error('Error al crear categoría:', error);
+    res.status(500).json({ 
+      ok: false, 
+      msg: 'Hable con el admin',
+      error: error.message 
+    });
+  }
 };
+
 
 const actualizarCategoria = async (req, res) => {
+  const id = req.params.id;
+  const uid = req.uid;
 
-    const id = req.params.id;
-    const uid = req.uid;
-
-    try {
-
-        const categoria = await Categoria.findById(id);
-        if (!categoria) {
-            return res.status(500).json({
-                ok: false,
-                msg: 'categoria no encontrado por el id'
-            });
-        }
-
-        const cambiosCategoria = {
-            ...req.body,
-            usuario: uid
-        }
-
-        // Si viene el título actualizado, actualizar el slug
-        if (req.body.name) {
-            const name = req.body.name;
-            const slug = name.toLowerCase()
-                .trim()
-                .replace(/[\s]+/g, '-') // reemplaza espacios por guiones
-                .replace(/[^\w\-]+/g, '') // elimina caracteres no alfanuméricos excepto guiones
-                .replace(/\-\-+/g, '-') // reemplaza guiones múltiples por uno solo
-                // reemplaza acentos y caracteres especiales
-                .replace(/á/g, 'a')
-                .replace(/é/g, 'e')
-                .replace(/í/g, 'i')
-                .replace(/ó/g, 'o')
-                .replace(/ú/g, 'u')
-                .replace(/ñ/g, 'n')
-                .replace(/ü/g, 'u');
-            cambiosCategoria.slug = slug;
-        }
-
-
-        const categoriaActualizado = await Categoria.findByIdAndUpdate(id, cambiosCategoria, { new: true });
-
-        res.json({
-            ok: true,
-            categoriaActualizado
-        });
-
-    } catch (error) {
-
-        res.status(500).json({
-            ok: false,
-            msg: 'Error hable con el admin'
-        });
+  try {
+    const categoria = await Categoria.findById(id);
+    if (!categoria) {
+      return res.status(404).json({ // Cambiado a 404 de forma correcta
+        ok: false, 
+        msg: 'Categoría no encontrada por el id' 
+      });
     }
 
+    // Inicializamos los cambios básicos clonando el body de tu formulario plano
+    const cambiosCategoria = { 
+      ...req.body, 
+      usuario: uid 
+    };
 
+    // 1. Si viene el nombre actualizado, actualizamos slug y traducimos
+    if (req.body.name) {
+      const nameEs = req.body.name;
+      
+      // Generación segura del SLUG
+      const slug = nameEs
+        .toLowerCase()
+        .trim()
+        .replace(/ñ/g, 'n')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\s]+/g, '-')
+        .replace(/[^\w\-]+/g, '')
+        .replace(/\-\-+/g, '-');
+
+      cambiosCategoria.slug = slug;
+
+      // 🚀 Traducimos automáticamente a inglés el nuevo nombre
+      const traducirName = await translate(nameEs, { from: 'es', to: 'en' });
+
+      // Convertimos la propiedad plana del body en el sub-objeto estructurado { es, en }
+      cambiosCategoria.name = {
+        es: nameEs,
+        en: traducirName.text
+      };
+    }
+
+    // 2. Ejecutar la actualización en MongoDB con validaciones activas
+    const categoriaActualizado = await Categoria.findByIdAndUpdate(
+      id, 
+      cambiosCategoria, 
+      { new: true, runValidators: true } // Agregado runValidators para blindar el modelo
+    );
+
+    res.json({ 
+      ok: true, 
+      categoriaActualizado 
+    });
+
+  } catch (error) {
+    console.error('Error al actualizar categoría:', error);
+    res.status(500).json({ 
+      ok: false, 
+      msg: 'Error hable con el admin',
+      error: error.message
+    });
+  }
 };
+
 
 const borrarCategoria = async(req, res) => {
 

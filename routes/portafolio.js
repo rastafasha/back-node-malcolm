@@ -13,10 +13,11 @@ const {
     actualizarPortafolio,
     listarPorCategoria,
     listarPorCategoriaId,
+    migrarPortafolioBilingue
 } = require('../controllers/portafolioController');
 
 router.get('/', getPortafolios);
-
+router.get('/migrar-portafolio-seguro', migrarPortafolioBilingue);
 // SOLUCIÓN: Hacemos las URLs explícitas y diferentes
 router.get('/category/name/:nombre', listarPorCategoria); // Nueva URL: /api/portafolio/category/name/DISEÑO
 router.get('/category/:id', listarPorCategoriaId);    // Nueva URL: /api/portafolio/category/id/60d5ec...

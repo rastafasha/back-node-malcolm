@@ -3,7 +3,8 @@ const Portafolio = require('../models/portafolio');
 const Categoria = require('../models/categoria');
 const bcrypt = require('bcryptjs');
 const { generarJWT } = require('../helpers/jwt');
-
+const translate = require('google-translate-api-x');
+const mongoose = require('mongoose');
 
 const getPortafolios = async (req, res) => {
 
@@ -56,116 +57,195 @@ const getPortafolio = async (req, res) => {
         });
 };
 
-
 const crearPortafolio = async (req, res) => {
+  const uid = req.uid;
 
-    const uid = req.uid;
+  // 1. Generación correcta y segura del SLUG sin pérdida de caracteres
+  const title = req.body.title || '';
+  const slug = title
+    .toLowerCase()
+    .trim()
+    .replace(/ñ/g, 'n')               // Reemplaza la eñe primero
+    .normalize('NFD')                 // Descompone caracteres acentuados
+    .replace(/[\u0300-\u036f]/g, '')   // Elimina los símbolos de acentos sueltos
+    .replace(/[\s]+/g, '-')           // Espacios a guiones
+    .replace(/[^\w\-]+/g, '')         // Limpia caracteres especiales restantes
+    .replace(/\-\-+/g, '-');          // Reduce guiones múltiples a uno solo
 
-    // Convertir el título en slug
-    const title = req.body.title || '';
-    const slug = title.toLowerCase()
-        .trim()
-        .replace(/[\s]+/g, '-') // reemplaza espacios por guiones
-        .replace(/[^\w\-]+/g, '') // elimina caracteres no alfanuméricos excepto guiones
-        .replace(/\-\-+/g, '-') // reemplaza guiones múltiples por uno solo
-        // reemplaza acentos y caracteres especiales
-        .replace(/á/g, 'a')
-        .replace(/é/g, 'e')
-        .replace(/í/g, 'i')
-        .replace(/ó/g, 'o')
-        .replace(/ú/g, 'u')
-        .replace(/ñ/g, 'n')
-        .replace(/ü/g, 'u');
-    const introhome = req.body.description || '';
-    //extraemos introhome desde description con un liminte de caracteres de 100
-    const short_descripcion_limit = introhome.substring(0, 100);
+  // Extraemos los textos crudos en español del body
+  const textoDescription = req.body.description || '';
+  
+  // Generamos el límite de caracteres en español para introhome
+  const introhomeEs = textoDescription.substring(0, 100);
 
+  try {
+    // 🚀 TRADUCCIÓN EN PARALELO: Traducimos de Español a Inglés usando Promise.all
+    const [traducirTitle, traducirDescription, traducirIntrohome] = await Promise.all([
+      translate(title, { from: 'es', to: 'en' }),
+      translate(textoDescription, { from: 'es', to: 'en' }),
+      translate(introhomeEs, { from: 'es', to: 'en' })
+    ]);
+
+    // 2. Crear la instancia adaptada al esquema bilingüe de MongoDB
     const portafolio = new Portafolio({
-        usuario: uid,
-        ...req.body,
-        slug: slug,
-        introhome: short_descripcion_limit
+      ...req.body, // Trae el resto de campos (links, imágenes, tecnologías, etc.)
+      usuario: uid,
+      slug: slug,
+      
+      // Reestructuramos las propiedades de texto plano a sub-objetos { es, en }
+      title: {
+        es: title,
+        en: traducirTitle.text
+      },
+      description: {
+        es: textoDescription,
+        en: traducirDescription.text
+      },
+      introhome: {
+        es: introhomeEs,
+        en: traducirIntrohome.text // Traduce directamente el resumen recortado
+      }
     });
 
-    try {
+    // 3. Guardar en la Base de Datos
+    const portafolioDB = await portafolio.save();
+    
+    res.json({ 
+      ok: true, 
+      portafolio: portafolioDB 
+    });
 
-        const portafolioDB = await portafolio.save();
-
-        res.json({
-            ok: true,
-            portafolio: portafolioDB
-        });
-
-    } catch (error) {
-        // console.log(error);
-        res.status(500).json({
-            ok: false,
-            msg: 'Hable con el admin'
-        });
-    }
+  } catch (error) {
+    console.error('Error al crear portafolio:', error); // Rastro visible en tus logs
+    res.status(500).json({ 
+      ok: false, 
+      msg: 'Hable con el admin',
+      error: error.message 
+    });
+  }
 };
-
 const actualizarPortafolio = async (req, res) => {
+  const id = req.params.id;
+  const uid = req.uid;
 
-    const id = req.params.id;
-    const uid = req.uid;
-
-    try {
-
-        const portafolio = await Portafolio.findById(id);
-        if (!portafolio) {
-            return res.status(500).json({
-                ok: false,
-                msg: 'portafolio no encontrado por el id'
-            });
-        }
-
-        const cambiosPortafolio = {
-            ...req.body,
-            usuario: uid
-        }
-
-        // Si viene el título actualizado, actualizar el slug
-        if (req.body.title) {
-            const title = req.body.title;
-            const slug = title.toLowerCase()
-                .trim()
-                .replace(/[\s]+/g, '-') // reemplaza espacios por guiones
-                .replace(/[^\w\-]+/g, '') // elimina caracteres no alfanuméricos excepto guiones
-                .replace(/\-\-+/g, '-') // reemplaza guiones múltiples por uno solo
-                // reemplaza acentos y caracteres especiales
-                .replace(/á/g, 'a')
-                .replace(/é/g, 'e')
-                .replace(/í/g, 'i')
-                .replace(/ó/g, 'o')
-                .replace(/ú/g, 'u')
-                .replace(/ñ/g, 'n')
-                .replace(/ü/g, 'u');
-            cambiosPortafolio.slug = slug;
-        }
-
-        if (req.body.introhome) {
-            const introhome = req.body.introhome || '';
-            const short_descripcion_limit = introhome.substring(0, 100);
-            cambiosPortafolio.introhome = short_descripcion_limit;
-        }
-
-        const portafolioActualizado = await Portafolio.findByIdAndUpdate(id, cambiosPortafolio, { new: true });
-
-        res.json({
-            ok: true,
-            portafolioActualizado
-        });
-
-    } catch (error) {
-
-        res.status(500).json({
-            ok: false,
-            msg: 'Error hable con el admin'
-        });
+  try {
+    const portafolio = await Portafolio.findById(id);
+    if (!portafolio) {
+      return res.status(404).json({ // Cambiado a 404 que es el código correcto para no encontrado
+        ok: false, 
+        msg: 'Portafolio no encontrado por el id' 
+      });
     }
 
+    // Inicializamos el objeto con los campos básicos
+    const cambiosPortafolio = { 
+      ...req.body, 
+      usuario: uid 
+    };
 
+    // Arrays para gestionar las promesas de traducción dinámicamente
+    const translationPromises = [];
+    const translationKeys = [];
+
+    // 1. Si viene el título, actualizamos slug y traducimos título
+    if (req.body.title) {
+      const title = req.body.title;
+      const slug = title
+        .toLowerCase()
+        .trim()
+        .replace(/ñ/g, 'n')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\s]+/g, '-')
+        .replace(/[^\w\-]+/g, '')
+        .replace(/\-\-+/g, '-');
+
+      cambiosPortafolio.slug = slug;
+
+      // Encolamos la traducción del título
+      translationPromises.push(translate(title, { from: 'es', to: 'en' }));
+      translationKeys.push('title');
+    }
+
+    // 2. Si viene la descripción, traducimos la descripción completa
+    if (req.body.description) {
+      translationPromises.push(translate(req.body.description, { from: 'es', to: 'en' }));
+      translationKeys.push('description');
+
+      // Si el frontend NO envió un 'introhome' explícito pero sí cambió la descripción,
+      // regeneramos automáticamente el introhome recortado en base a la nueva descripción.
+      if (!req.body.introhome) {
+        const introhomeEs = req.body.description.substring(0, 100);
+        translationPromises.push(translate(introhomeEs, { from: 'es', to: 'en' }));
+        translationKeys.push('introhome_auto'); // Bandera para procesarlo abajo
+        
+        cambiosPortafolio.introhome = { es: introhomeEs };
+      }
+    }
+
+    // 3. Si viene un introhome explícito desde el body, lo procesamos y traducimos
+    if (req.body.introhome) {
+      const introhomeEs = req.body.introhome.substring(0, 100);
+      
+      translationPromises.push(translate(introhomeEs, { from: 'es', to: 'en' }));
+      translationKeys.push('introhome_direct');
+
+      cambiosPortafolio.introhome = { es: introhomeEs };
+    }
+
+    // 🚀 EJECUCIÓN EN PARALELO: Solo si hay campos que traducir
+    if (translationPromises.length > 0) {
+      const translationsResults = await Promise.all(translationPromises);
+
+      // Asignamos los resultados bilingües estructurados según las claves procesadas
+      translationsResults.forEach((result, index) => {
+        const key = translationKeys[index];
+
+        if (key === 'title') {
+          cambiosPortafolio.title = {
+            es: req.body.title,
+            en: result.text
+          };
+        }
+        if (key === 'description') {
+          cambiosPortafolio.description = {
+            es: req.body.description,
+            en: result.text
+          };
+        }
+        if (key === 'introhome_auto') {
+          // Asigna la traducción al objeto que ya habíamos preparado arriba
+          cambiosPortafolio.introhome.en = result.text;
+        }
+        if (key === 'introhome_direct') {
+          cambiosPortafolio.introhome = {
+            es: req.body.introhome.substring(0, 100),
+            en: result.text
+          };
+        }
+      });
+    }
+
+    // 4. Ejecutar la actualización en MongoDB
+    const portafolioActualizado = await Portafolio.findByIdAndUpdate(
+      id, 
+      cambiosPortafolio, 
+      { new: true, runValidators: true }
+    );
+
+    res.json({ 
+      ok: true, 
+      portafolioActualizado 
+    });
+
+  } catch (error) {
+    console.error('Error al actualizar portafolio:', error);
+    res.status(500).json({ 
+      ok: false, 
+      msg: 'Error hable con el admin',
+      error: error.message
+    });
+  }
 };
 
 
@@ -263,8 +343,80 @@ const listarPorCategoriaId = async (req, res) => {
         return res.status(500).json({ message: 'Error en el servidor', error: err.message });
     }
 };
+const migrarPortafolioBilingue = async (req, res) => {
+  try {
+    // 1. FORZAR LA CONEXIÓN: Si la base de datos no está lista, la conectamos explícitamente
+    if (mongoose.connection.readyState !== 1) {
+      console.log('MongoDB no estaba conectado. Conectando ahora...');
+      
+      // Usa tu variable de entorno exacta (ej: process.env.MONGODB_CNN o MONGODB_URI)
+      const mongoUri = process.env.MONGODB_CNN || process.env.MONGODB_URI; 
+      
+      if (!mongoUri) {
+        return res.status(500).json({
+          ok: false,
+          msg: 'Error: No se encontró la variable de entorno de conexión a MongoDB.'
+        });
+      }
 
+      await mongoose.connect(mongoUri, {
+        serverSelectionTimeoutMS: 5000 // Si en 5 segundos no conecta a Atlas, tira error claro
+      });
+      console.log('¡Conexión a MongoDB establecida con éxito desde el script!');
+    }
 
+    // 2. Traemos todos los portafolios (Ahora con la conexión 100% garantizada)
+    const portafolios = await Portafolio.find({});
+    let totalMigrados = 0;
+
+    console.log(`Iniciando migración de ${portafolios.length} proyectos...`);
+
+    for (const p of portafolios) {
+      // Verificamos si el registro ya fue migrado (si es un objeto con subcampo 'es')
+      if (p.title && typeof p.title === 'object' && p.title.es) {
+        continue; 
+      }
+
+      const tituloViejo = typeof p.title === 'string' ? p.title : '';
+      const descripcionVieja = typeof p.description === 'string' ? p.description : '';
+      const introhomeViejo = typeof p.introhome === 'string' ? p.introhome : descripcionVieja.substring(0, 100);
+
+      // Traducimos los textos viejos en paralelo
+      const [traducirTitle, traducirDescription, traducirIntrohome] = await Promise.all([
+        translate(tituloViejo, { from: 'es', to: 'en' }).catch(() => ({ text: '' })),
+        translate(descripcionVieja, { from: 'es', to: 'en' }).catch(() => ({ text: '' })),
+        translate(introhomeViejo, { from: 'es', to: 'en' }).catch(() => ({ text: '' }))
+      ]);
+
+      // Guardamos la estructura bilingüe usando actualización directa por ID
+      await Portafolio.updateOne(
+        { _id: p._id },
+        {
+          $set: {
+            title: { es: tituloViejo, en: traducirTitle.text },
+            description: { es: descripcionVieja, en: traducirDescription.text },
+            introhome: { es: introhomeViejo, en: traducirIntrohome.text }
+          }
+        }
+      );
+
+      totalMigrados++;
+    }
+
+    return res.json({
+      ok: true,
+      msg: `Migración completada. Se tradujeron ${totalMigrados} proyectos con éxito.`
+    });
+
+  } catch (error) {
+    console.error('Error crítico en la migración:', error);
+    return res.status(500).json({
+      ok: false,
+      msg: 'Error en el proceso de migración',
+      error: error.message
+    });
+  }
+};
 
 
 module.exports = {
@@ -274,5 +426,6 @@ getPortafolio,
 borrarPortafolio,
 crearPortafolio,
 actualizarPortafolio,
-listarPorCategoriaId
+listarPorCategoriaId,
+migrarPortafolioBilingue
 };
